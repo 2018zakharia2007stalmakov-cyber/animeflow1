@@ -1,0 +1,28 @@
+<a href="/anime/{{ a.id }}" class="anime-card group block relative rounded-2xl overflow-hidden bg-surface border border-white/5 transition-all duration-300 hover:scale-[1.04] hover:shadow-glow hover:border-accent/40">
+  <div class="aspect-[2/3] relative overflow-hidden bg-surface2">
+    <img src="{{ a.poster_url or '/static/images/default-cover.jpg' }}" alt="{{ a.title }}" loading="lazy"
+         class="w-full h-full object-cover transition duration-500 group-hover:scale-110"
+         onerror="this.onerror=null;this.src='/static/images/default-cover.jpg'" />
+
+    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition duration-300 grid place-items-center">
+      <div class="w-14 h-14 rounded-full bg-accent grid place-items-center shadow-glow scale-90 group-hover:scale-100 transition">
+        <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+
+    {% if a.rating %}
+      <div class="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-0.5 rounded-lg text-xs font-bold text-yellow-400 flex items-center gap-1">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .587l3.668 7.568L24 9.75l-6 5.844 1.417 8.262L12 19.771 4.583 23.856 6 15.594 0 9.75l8.332-1.595z"/></svg>
+        {{ '%.1f'|format(a.rating) }}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="p-3">
+    <h3 class="font-semibold text-sm leading-tight line-clamp-1 group-hover:text-accent transition">{{ a.title }}</h3>
+    <div class="flex items-center justify-between mt-1 text-xs text-gray-400">
+      <span>{{ a.year or '—' }}</span>
+      <span class="capitalize">{{ a.status }}</span>
+    </div>
+  </div>
+</a>

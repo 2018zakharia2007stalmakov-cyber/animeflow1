@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Вход · ANIMEFLOW{% endblock %}
+
+{% block content %}
+  <div class="min-h-[60vh] grid place-items-center">
+    <div class="w-full max-w-md rounded-2xl bg-surface border border-white/5 p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 rounded-2xl bg-accent shadow-glow grid place-items-center mx-auto mb-3 text-white font-black">A</div>
+        <h1 class="text-2xl font-extrabold">С возвращением</h1>
+        <p class="text-sm text-gray-400 mt-1">Войдите, чтобы сохранять любимое и продолжать просмотр</p>
+      </div>
+
+      {% if error %}
+        <div class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login" class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Логин или Email</label>
+          <input name="username" required class="w-full bg-surface2 border border-white/5 focus:border-accent focus:ring-2 focus:ring-accent/30 rounded-xl px-4 py-3 text-sm outline-none transition" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Пароль</label>
+          <input name="password" type="password" required class="w-full bg-surface2 border border-white/5 focus:border-accent focus:ring-2 focus:ring-accent/30 rounded-xl px-4 py-3 text-sm outline-none transition" />
+        </div>
+        <button class="w-full py-3 rounded-xl bg-accent hover:bg-accentSoft transition font-semibold shadow-glow">Войти</button>
+      </form>
+
+      <!-- OAuth divider -->
+      <div class="flex items-center gap-3 my-4">
+        <div class="flex-1 h-px bg-white/5"></div>
+        <span class="text-xs text-gray-500">или войти через</span>
+        <div class="flex-1 h-px bg-white/5"></div>
+      </div>
+
+      <div class="flex gap-2">
+        <a href="/auth/google" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-surface2 border border-white/5 hover:border-white/15 text-sm transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Google
+        </a>
+        <a href="/auth/vk" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-surface2 border border-white/5 hover:border-white/15 text-sm transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="#4a76a8">
+            <path d="M12.59 16h1.46s.44-.05.66-.3c.21-.22.2-.65.2-.65s-.03-1.94.86-2.22c.88-.28 2.01 1.86 3.21 2.69.91.62 1.6.49 1.6.49l3.2-.05s1.68-.1.88-1.43c-.07-.1-.46-.97-2.36-2.74-1.99-1.85-1.72-1.55.67-4.74 1.45-1.94 2.04-3.13 1.86-3.64-.18-.49-1.26-.36-1.26-.36h-3.6s-.27-.04-.46.08c-.2.12-.32.4-.32.4s-.58 1.55-1.36 2.86c-1.64 2.78-2.3 2.93-2.57 2.76-.62-.4-.46-1.58-.46-2.43 0-2.64.4-3.74-.78-4.03-.39-.1-.68-.17-1.69-.18-1.3-.01-2.4 0-3.02.31-.41.2-.74.66-.54.69.24.03.79.15 1.08.55.38.51.36 1.66.36 1.66s.22 3.21-.51 3.61c-.5.27-1.19-.29-2.66-2.81-.75-1.29-1.32-2.71-1.32-2.71s-.11-.27-.31-.41c-.24-.18-.58-.24-.58-.24L1.7 4.93s-.51.01-.7.23c-.17.2-.01.6-.01.6s2.69 6.3 5.74 9.47c2.8 2.91 5.86 2.77 5.86 2.77z"/>
+          </svg>
+          ВКонтакте
+        </a>
+      </div>
+
+      <p class="text-center text-sm text-gray-400 mt-6">
+        Нет аккаунта? <a href="/register" class="text-accent hover:underline">Зарегистрируйтесь</a>
+      </p>
+    </div>
+  </div>
+{% endblock %}

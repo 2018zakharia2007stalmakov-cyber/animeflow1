@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }} — плеер ANIMEFLOW</title>
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <link rel="stylesheet" href="/static/css/custom.css" />
+  <style>
+    html, body { background: #000; color: #fff; margin: 0; height: 100%; font-family: Inter, system-ui, sans-serif; }
+    .stage { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
+    .stage video, .stage iframe { width: 100%; height: 100%; border: 0; }
+    .miss {
+      text-align: center; max-width: 420px; padding: 28px;
+      background: #161921; border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+    }
+    .miss .ico { font-size: 40px; margin-bottom: 8px; color: #8b5cf6; }
+    .miss h2 { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+    .miss p { font-size: 13px; color: #9ca3af; margin: 0; line-height: 1.5; }
+    :root { --plyr-color-main: #8b5cf6; }
+
+    /* Loading spinner */
+    .loading-spinner {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #000;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(139,92,246,0.2);
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-spinner p { margin-top: 14px; font-size: 13px; color: #6b7280; }
+
+    .overlay-btn {
+      position: absolute; z-index: 10;
+      background: rgba(20, 22, 30, 0.78);
+      backdrop-filter: blur(8px);
+      color: #fff; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 8px 14px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: opacity .25s ease, transform .25s ease, background .2s ease;
+      opacity: 0; transform: translateY(6px); pointer-events: none;
+    }
+    .overlay-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .overlay-btn:hover { background: #8b5cf6; border-color: #8b5cf6; }
+    .overlay-btn svg { width: 14px; height: 14px; }
+    .share-btn { right: 24px; top: 24px; }
+
+    .countdown {
+      position: absolute; left: 24px; bottom: 92px; z-index: 11;
+      background: rgba(20, 22, 30, 0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(139,92,246,0.45);
+      border-radius: 14px; padding: 14px 18px;
+      display: none; align-items: center; gap: 14px;
+      max-width: 320px;
+    }
+    .countdown.show { display: flex; }
+    .countdown .ring {
+      position: relative; width: 44px; height: 44px; flex-shrink: 0;
+    }
+    .countdown .ring svg { width: 44px; height: 44px; transform: rotate(-90deg); }
+    .countdown .ring .num {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-weight: 700; font-size: 14px; color: #fff;
+    }
+    .countdown .info { flex: 1; min-width: 0; }
+    .countdown .info .label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: .04em; }
+    .countdown .info .ep { font-size: 14px; font-weight: 700; color: #fff; margin-top: 2px; }
+    .countdown .actions { display: flex; flex-direction: column; gap: 6px; }
+    .countdown .actions button {
+      background: #8b5cf6; color: #fff; border: 0;
+      padding: 6px 12px; border-radius: 9px; font-size: 12px; font-weight: 600;
+      cursor: pointer;
+    }
+    .countdown .actions button.ghost { background: transparent; color: #9ca3af; }
+    .countdown .actions button:hover { filter: brightness(1.1); }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(20px);
+      background: #161921; border: 1px solid rgba(139,92,246,0.4);
+      color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 13px;
+      opacity: 0; transition: opacity .25s, transform .25s; z-index: 20;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .tap-zones {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; pointer-events: none;
+    }
+    .tap-zone {
+      flex: 1; pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .tap-zone.middle { flex: 0 0 30%; pointer-events: none; }
+    .seek-burst {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      pointer-events: none;
+      background: rgba(20, 22, 30, 0.78);
+      border: 1px solid rgba(139,92,246,0.45);
+      border-radius: 999px;
+      padding: 14px 22px;
+      display: inline-flex; align-items: center; gap: 8px;
+      color: #fff; font-weight: 700; font-size: 15px;
+      opacity: 0; transition: opacity .18s ease, transform .35s ease;
+      z-index: 12;
+    }
+    .seek-burst.show { opacity: 1; }
+    .seek-burst.left  { left: 14%; transform: translateY(-50%) translateX(-12px); }
+    .seek-burst.left.show  { transform: translateY(-50%) translateX(0); }
+    .seek-burst.right { right: 14%; transform: translateY(-50%) translateX(12px); }
+    .seek-burst.right.show { transform: translateY(-50%) translateX(0); }
+    .seek-burst svg { width: 16px; height: 16px; }
+
+    .share-menu {
+      position: absolute; top: 64px; right: 24px; z-index: 30;
+      background: rgba(15, 17, 22, 0.97); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+      min-width: 220px; padding: 6px;
+      box-shadow: 0 18px 40px -16px rgba(0,0,0,.6);
+      display: none; flex-direction: column;
+    }
+    .share-menu.show { display: flex; }
+    .share-menu button, .share-menu a {
+      background: transparent; border: 0; color: #f3f4f6;
+      text-align: left; padding: 10px 12px; border-radius: 9px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .share-menu button:hover, .share-menu a:hover {
+      background: rgba(139, 92, 246, 0.18); color: #fff;
+    }
+    .share-menu .ico { width: 18px; height: 18px; flex-shrink: 0; opacity: .85; }
+
+    @media (max-width: 640px) {
+      .overlay-btn { padding: 10px 14px; font-size: 12px; }
+      .share-btn   { right: 12px; top: 12px; padding: 10px 12px; }
+      .countdown {
+        left: 12px; right: 12px; bottom: 78px; max-width: none;
+        padding: 12px 14px;
+      }
+      .seek-burst { padding: 12px 16px; font-size: 14px; }
+      .share-menu { right: 12px; top: 56px; min-width: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    {% if not video_url %}
+      <div class="miss">
+        <div class="ico">⚠</div>
+        <h2>Видео недоступно</h2>
+        <p>{{ not_found_reason or 'Источник видео не найден. Попробуйте позже — возможно, серия ещё не вышла.' }}</p>
+      </div>
+
+    {% elif video_url.endswith('.m3u8') or '.m3u8?' in video_url
+          or video_url.endswith('.mp4')  or '.mp4?'  in video_url
+          or video_url.endswith('.webm') or '.webm?' in video_url
+          or video_url.endswith('.mkv')  or '.mkv?'  in video_url %}
+
+      <div id="loading-spinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Загрузка видео…</p>
+      </div>
+
+      <video id="player" playsinline controls
+             {% if episode_id %}data-episode-id="{{ episode_id }}"{% endif %}
+             {% if anime_id %}data-anime-id="{{ anime_id }}"{% endif %}
+             {% if next_url is defined %}data-next-url="{{ next_url or '' }}"{% endif %}>
+      </video>
+
+      <button type="button" id="share-btn" class="overlay-btn share-btn show" title="Поделиться">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Поделиться
+      </button>
+
+      <div id="share-menu" class="share-menu" role="menu" aria-label="Поделиться ссылкой">
+        <button type="button" data-share="copy">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Скопировать ссылку
+        </button>
+        <a href="#" data-share="telegram" target="_blank" rel="noopener">
+          <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M9.04 15.46l-.37 4.4c.53 0 .76-.23 1.04-.5l2.5-2.39 5.18 3.79c.95.53 1.63.25 1.88-.88l3.42-16.04c.31-1.42-.51-1.97-1.43-1.63L1.5 9.36c-1.39.55-1.37 1.34-.24 1.7l4.93 1.54L17.7 5.6c.54-.34 1.04-.15.63.2"/></svg>
+          Telegram
+        </a>
+        <a href="#" data-share="vk" target="_blank" rel="noopener">
+          <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12.59 16h1.46s.44-.05.66-.3c.21-.22.2-.65.2-.65s-.03-1.94.86-2.22c.88-.28 2.01 1.86 3.21 2.69.91.62 1.6.49 1.6.49l3.2-.05s1.68-.1.88-1.43c-.07-.1-.46-.97-2.36-2.74-1.99-1.85-1.72-1.55.67-4.74 1.45-1.94 2.04-3.13 1.86-3.64-.18-.49-1.26-.36-1.26-.36h-3.6s-.27-.04-.46.08c-.2.12-.32.4-.32.4s-.58 1.55-1.36 2.86c-1.64 2.78-2.3 2.93-2.57 2.76-.62-.4-.46-1.58-.46-2.43 0-2.64.4-3.74-.78-4.03-.39-.1-.68-.17-1.69-.18-1.3-.01-2.4 0-3.02.31-.41.2-.74.66-.54.69.24.03.79.15 1.08.55.38.51.36 1.66.36 1.66s.22 3.21-.51 3.61c-.5.27-1.19-.29-2.66-2.81-.75-1.29-1.32-2.71-1.32-2.71s-.11-.27-.31-.41c-.24-.18-.58-.24-.58-.24L1.7 4.93s-.51.01-.7.23c-.17.2-.01.6-.01.6s2.69 6.3 5.74 9.47c2.8 2.91 5.86 2.77 5.86 2.77z"/></svg>
+          ВКонтакте
+        </a>
+      </div>
+
+      <div id="seek-burst-left" class="seek-burst left" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        −10
+      </div>
+      <div id="seek-burst-right" class="seek-burst right" aria-hidden="true">
+        +10
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+      </div>
+
+      <div id="next-countdown" class="countdown" role="status" aria-live="polite">
+        <div class="ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>
+            <circle id="next-progress" cx="18" cy="18" r="16" fill="none" stroke="#8b5cf6" stroke-width="3"
+                    stroke-dasharray="100.5" stroke-dashoffset="100.5" stroke-linecap="round"/>
+          </svg>
+          <span class="num" id="next-num">10</span>
+        </div>
+        <div class="info">
+          <div class="label">Следующая серия</div>
+          <div class="ep" id="next-ep-label">через 10 сек</div>
+        </div>
+        <div class="actions">
+          <button type="button" id="next-now">Следующая серия</button>
+          <button type="button" id="next-cancel" class="ghost">Отмена</button>
+        </div>
+      </div>
+
+      <div id="toast" class="toast">Ссылка скопирована</div>
+
+      <div id="player-error" class="miss" style="display:none; position:absolute; inset:0; z-index:20; align-items:center; justify-content:center;">
+        <div>
+          <div class="ico">⚠</div>
+          <h2>Не удалось загрузить видео</h2>
+          <p id="player-error-text">Проверьте интернет и попробуйте ещё раз.</p>
+          <button type="button" id="player-retry"
+                  style="margin-top:18px; padding:10px 22px; border:0; border-radius:12px; background:#8b5cf6; color:#fff; font-weight:600; cursor:pointer;">
+            Повторить
+          </button>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+      <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+      <script>
+        (function () {
+          var video   = document.getElementById('player');
+          var spinner = document.getElementById('loading-spinner');
+          var src     = {{ video_url|tojson }};
+          var isHls   = src && (src.indexOf('.m3u8') !== -1);
+
+          var player = new Plyr(video, {
+            controls: ['play-large','play','progress','current-time','mute','volume','settings','pip','fullscreen'],
+            settings: ['quality','speed'],
+            quality: { default: 720, options: [1080, 720, 480], forced: true },
+          });
+
+          var errBox  = document.getElementById('player-error');
+          var errText = document.getElementById('player-error-text');
+          var retryBtn = document.getElementById('player-retry');
+
+          function showError(msg) {
+            if (spinner) spinner.style.display = 'none';
+            if (errText) errText.textContent = msg || 'Проверьте интернет и попробуйте ещё раз.';
+            if (errBox) errBox.style.display = 'flex';
+          }
+          function hideError() { if (errBox) errBox.style.display = 'none'; }
+          function hideSpinner() { if (spinner) spinner.style.display = 'none'; }
+
+          if (retryBtn) {
+            retryBtn.addEventListener('click', function () { window.location.reload(); });
+          }
+
+          // Hide spinner when video is ready
+          video.addEventListener('loadeddata', hideSpinner);
+          video.addEventListener('canplay', hideSpinner);
+          video.addEventListener('playing', hideSpinner);
+          video.addEventListener('error', function () {
+            showError('Видео не отвечает. Возможно, источник временно недоступен.');
+          });
+
+          // Safety timeout: hide spinner after 20s regardless
+          var spinnerTimeout = setTimeout(function () {
+            hideSpinner();
+          }, 20000);
+
+          if (isHls && window.Hls && Hls.isSupported()) {
+            var hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+            hls.loadSource(src);
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+              hideError();
+              clearTimeout(spinnerTimeout);
+              hideSpinner();
+              var levels = (hls.levels || []).map(function (l, i) { return { idx: i, height: l.height || 0 }; });
+              if (!levels.length) return;
+              var heights = levels.map(function (l) { return l.height; }).filter(function (h) { return h > 0; });
+              heights.sort(function (a, b) { return b - a; });
+              try {
+                player.config.quality = {
+                  default: heights[0],
+                  options: heights,
+                  forced: true,
+                  onChange: function (q) {
+                    for (var i = 0; i < hls.levels.length; i++) {
+                      if (hls.levels[i].height === q) { hls.currentLevel = i; break; }
+                    }
+                  },
+                };
+              } catch (e) {}
+            });
+
+            hls.on(Hls.Events.ERROR, function (event, data) {
+              if (!data || !data.fatal) return;
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                try { hls.startLoad(); return; } catch (e) {}
+                showError('Сеть оборвалась. Проверьте подключение и нажмите «Повторить».');
+              } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                try { hls.recoverMediaError(); return; } catch (e) {}
+                showError('Ошибка декодирования. Попробуйте обновить страницу.');
+              } else {
+                showError('Поток недоступен. Попробуйте позже.');
+              }
+            });
+
+          } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari native HLS
+            video.src = src;
+          } else {
+            // Direct MP4/WebM/etc
+            video.src = src;
+            video.addEventListener('loadedmetadata', function () {
+              clearTimeout(spinnerTimeout);
+              hideSpinner();
+            });
+          }
+
+          // ---- Save progress every ~10s ----
+          var lastSent = 0;
+          player.on('timeupdate', function () {
+            var now = Date.now();
+            if (now - lastSent < 10000) return;
+            lastSent = now;
+            var episodeId = parseInt(video.dataset.episodeId || '0', 10);
+            if (!episodeId) return;
+            try {
+              fetch('/api/progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                  episode_id: episodeId,
+                  timestamp: player.currentTime || 0,
+                  duration: player.duration || 0,
+                }),
+              }).catch(function(){});
+            } catch (e) {}
+          });
+
+          player.on('ended', function () {
+            try { window.parent.postMessage({ type: 'animeflow:ended' }, '*'); } catch (e) {}
+          });
+
+          // ---- Resume from parent + Space key via postMessage ----
+          window.addEventListener('message', function (e) {
+            if (!e || !e.data) return;
+            if (e.data.type === 'animeflow:seek') {
+              var t = parseFloat(e.data.time || 0);
+              if (!isNaN(t) && t > 0) {
+                try { player.currentTime = t; } catch (err) {}
+              }
+            }
+            if (e.data.type === 'animeflow:toggle_play') {
+              try { player.togglePlay(); } catch (err) {}
+            }
+            if (e.data.type === 'animeflow:volume') {
+              try { player.volume = Math.max(0, Math.min(1, parseFloat(e.data.value || 1))); } catch (err) {}
+            }
+          });
+
+          // Space key directly inside the iframe
+          document.addEventListener('keydown', function (ev) {
+            if (ev.target && /^(input|textarea|select)$/i.test(ev.target.tagName)) return;
+            if (ev.code === 'Space' || ev.key === ' ') {
+              ev.preventDefault();
+              try { player.togglePlay(); } catch (err) {}
+            }
+          }, true);
+
+          // ---- "Next episode" panel ----
+          var nextUrl = (video.dataset.nextUrl || '').trim();
+          var cdEl     = document.getElementById('next-countdown');
+          var cdNum    = document.getElementById('next-num');
+          var cdProg   = document.getElementById('next-progress');
+          var cdLabel  = document.getElementById('next-ep-label');
+          var cdNow    = document.getElementById('next-now');
+          var cdCancel = document.getElementById('next-cancel');
+          var cdTimer  = null;
+          var cdValue  = 0;
+          var cdCancelled = false;
+          var cdShown  = false;
+          var DASH_LEN = 100.5;
+          var COUNTDOWN_BEFORE_END = 120;
+          var AUTO_ADVANCE_AFTER_END = 5;
+
+          function goToNext() {
+            if (!nextUrl) return;
+            try { window.parent.location.href = nextUrl; }
+            catch (e) { window.location.href = nextUrl; }
+          }
+          function stopTimer() {
+            if (cdTimer) { clearInterval(cdTimer); cdTimer = null; }
+          }
+          function hideCountdown() {
+            cdEl.classList.remove('show'); cdShown = false; stopTimer();
+          }
+          function showPanel(secondsLeft) {
+            if (cdCancelled) return;
+            cdShown = true;
+            cdValue = Math.max(0, Math.round(secondsLeft));
+            cdNum.textContent = cdValue >= 100 ? '∞' : String(cdValue);
+            cdLabel.textContent = cdValue > 0
+              ? 'осталось ' + Math.floor(cdValue / 60) + ':' + (('0' + (cdValue % 60)).slice(-2))
+              : 'готово';
+            cdProg.setAttribute('stroke-dashoffset', '0');
+            cdEl.classList.add('show');
+          }
+          function startAutoAdvance() {
+            if (!nextUrl || cdCancelled || cdTimer) return;
+            cdShown = true;
+            cdValue = AUTO_ADVANCE_AFTER_END;
+            cdNum.textContent = cdValue;
+            cdLabel.textContent = 'через ' + cdValue + ' сек';
+            cdProg.setAttribute('stroke-dashoffset', '0');
+            cdEl.classList.add('show');
+            cdTimer = setInterval(function () {
+              cdValue -= 1;
+              if (cdValue <= 0) { hideCountdown(); goToNext(); return; }
+              cdNum.textContent = cdValue;
+              cdLabel.textContent = 'через ' + cdValue + ' сек';
+              var off = DASH_LEN * (1 - cdValue / AUTO_ADVANCE_AFTER_END);
+              cdProg.setAttribute('stroke-dashoffset', off.toFixed(2));
+            }, 1000);
+          }
+
+          if (nextUrl) {
+            player.on('timeupdate', function () {
+              if (cdCancelled) return;
+              var t   = player.currentTime || 0;
+              var dur = player.duration || 0;
+              if (dur <= 0) return;
+              var left = dur - t;
+              if (left <= COUNTDOWN_BEFORE_END && left > 1 && !cdTimer) {
+                showPanel(left);
+              } else if (left > COUNTDOWN_BEFORE_END && cdShown && !cdTimer) {
+                hideCountdown();
+              }
+            });
+            player.on('ended', function () { if (!cdCancelled) startAutoAdvance(); });
+            cdNow.addEventListener('click', function () { hideCountdown(); goToNext(); });
+            cdCancel.addEventListener('click', function () { cdCancelled = true; hideCountdown(); });
+            try {
+              var link = document.createElement('link');
+              link.rel = 'prefetch'; link.href = nextUrl;
+              document.head.appendChild(link);
+            } catch (e) {}
+          }
+
+          // ---- Analytics ----
+          var animeId   = parseInt(video.dataset.animeId   || '0', 10) || null;
+          var episodeId = parseInt(video.dataset.episodeId || '0', 10) || null;
+          function track(event, extra) {
+            try {
+              var body = Object.assign({
+                event: event, anime_id: animeId, episode_id: episodeId,
+                timestamp: player.currentTime || 0, duration: player.duration || 0,
+              }, extra || {});
+              if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/analytics/event',
+                  new Blob([JSON.stringify(body)], { type: 'application/json' }));
+              } else {
+                fetch('/api/analytics/event', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                }).catch(function(){});
+              }
+            } catch (e) {}
+          }
+          player.on('play',  function () { track('play'); });
+          player.on('pause', function () { track('pause'); });
+          player.on('ended', function () { track('ended'); });
+          window.addEventListener('beforeunload', function () { track('exit'); });
+          window.addEventListener('pagehide',     function () { track('exit'); });
+
+          // ---- Double-tap ±10s ----
+          var burstLeft  = document.getElementById('seek-burst-left');
+          var burstRight = document.getElementById('seek-burst-right');
+          var lastTapAt = 0, lastTapX = 0, DOUBLE_MS = 320;
+          function flashBurst(side) {
+            var el = side === 'left' ? burstLeft : burstRight;
+            if (!el) return;
+            el.classList.add('show');
+            clearTimeout(el._t);
+            el._t = setTimeout(function () { el.classList.remove('show'); }, 420);
+          }
+          function seekBy(delta) {
+            try {
+              var t = (player.currentTime || 0) + delta;
+              var dur = player.duration || 0;
+              if (dur > 0) t = Math.max(0, Math.min(dur - 0.1, t));
+              else t = Math.max(0, t);
+              player.currentTime = t;
+            } catch (e) {}
+          }
+          video.addEventListener('pointerdown', function (ev) {
+            var now = Date.now();
+            var dx  = Math.abs(ev.clientX - lastTapX);
+            if (now - lastTapAt < DOUBLE_MS && dx < 60) {
+              var rect = video.getBoundingClientRect();
+              var x = ev.clientX - rect.left;
+              if (x > rect.width * 0.35 && x < rect.width * 0.65) return;
+              if (x < rect.width / 2) { seekBy(-10); flashBurst('left'); track('double_tap_back', { detail: '-10' }); }
+              else                    { seekBy(10);  flashBurst('right'); track('double_tap_fwd',  { detail: '+10' }); }
+              ev.preventDefault(); lastTapAt = 0;
+            } else { lastTapAt = now; lastTapX = ev.clientX; }
+          });
+          document.addEventListener('keydown', function (ev) {
+            if (ev.target && /^(input|textarea|select)$/i.test(ev.target.tagName)) return;
+            if (ev.key === 'ArrowLeft')  { seekBy(-10); flashBurst('left');  track('double_tap_back', { detail: 'kbd' }); }
+            if (ev.key === 'ArrowRight') { seekBy(10);  flashBurst('right'); track('double_tap_fwd',  { detail: 'kbd' }); }
+          });
+
+          // ---- Fullscreen ----
+          var stage = document.querySelector('.stage');
+          var isIOS = /iP(ad|hone|od)/.test(navigator.userAgent || '');
+          function enterFullscreen() {
+            try {
+              if (isIOS && typeof video.webkitEnterFullscreen === 'function') {
+                video.webkitEnterFullscreen(); return;
+              }
+              var t = stage || video;
+              var req = t.requestFullscreen || t.webkitRequestFullscreen
+                     || t.mozRequestFullScreen || t.msRequestFullscreen;
+              if (req) {
+                req.call(t).then(function () {
+                  if (screen.orientation && screen.orientation.lock)
+                    screen.orientation.lock('landscape').catch(function () {});
+                }).catch(function () {});
+              } else if (typeof video.webkitEnterFullscreen === 'function') {
+                video.webkitEnterFullscreen();
+              }
+            } catch (e) {}
+          }
+          if ('ontouchstart' in window) {
+            setTimeout(function () {
+              var fsBtn = document.querySelector('.plyr__controls [data-plyr="fullscreen"]');
+              if (fsBtn) {
+                fsBtn.addEventListener('click', function (ev) {
+                  ev.preventDefault(); ev.stopImmediatePropagation(); enterFullscreen();
+                }, true);
+              }
+            }, 200);
+          }
+
+          // ---- Share ----
+          var shareBtn  = document.getElementById('share-btn');
+          var shareMenu = document.getElementById('share-menu');
+          var toast     = document.getElementById('toast');
+          function showToast(msg) {
+            toast.textContent = msg || 'Ссылка скопирована';
+            toast.classList.add('show');
+            setTimeout(function () { toast.classList.remove('show'); }, 1800);
+          }
+          function getShareUrl() {
+            try { return (window.parent && window.parent.location) ? window.parent.location.href : window.location.href; }
+            catch (e) { return window.location.href; }
+          }
+          function copyLink(url) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(function () { showToast('Ссылка скопирована'); }).catch(function () { showToast(url); });
+            } else {
+              try {
+                var tmp = document.createElement('textarea');
+                tmp.value = url; tmp.style.position = 'fixed'; tmp.style.opacity = '0';
+                document.body.appendChild(tmp); tmp.select();
+                document.execCommand('copy'); document.body.removeChild(tmp);
+                showToast('Ссылка скопирована');
+              } catch (e) { showToast(url); }
+            }
+          }
+          if (shareBtn) {
+            shareBtn.addEventListener('click', function () {
+              var url = getShareUrl();
+              var title = {{ (title or 'ANIMEFLOW')|tojson }};
+              track('share', { detail: 'open' });
+              if (navigator.share) {
+                navigator.share({ title: title, text: 'Смотри «' + title + '» на ANIMEFLOW', url: url }).catch(function(){});
+                return;
+              }
+              shareMenu.classList.toggle('show');
+            });
+          }
+          document.addEventListener('click', function (ev) {
+            if (!shareMenu || !shareMenu.classList.contains('show')) return;
+            if (ev.target.closest('#share-menu') || ev.target.closest('#share-btn')) return;
+            shareMenu.classList.remove('show');
+          });
+          if (shareMenu) {
+            shareMenu.addEventListener('click', function (ev) {
+              var t = ev.target.closest('[data-share]');
+              if (!t) return;
+              var kind = t.getAttribute('data-share');
+              var url  = getShareUrl();
+              var title = {{ (title or 'ANIMEFLOW')|tojson }};
+              var text  = 'Смотри «' + title + '» на ANIMEFLOW';
+              if (kind === 'copy') { ev.preventDefault(); copyLink(url); shareMenu.classList.remove('show'); return; }
+              var enc = encodeURIComponent, link = '';
+              if (kind === 'telegram') link = 'https://t.me/share/url?url=' + enc(url) + '&text=' + enc(text);
+              else if (kind === 'vk')  link = 'https://vk.com/share.php?url=' + enc(url) + '&title=' + enc(title);
+              if (link) { t.setAttribute('href', link); shareMenu.classList.remove('show'); track('share', { detail: kind }); }
+            });
+          }
+
+          video.addEventListener('error', function () { track('error', { detail: 'video' }); });
+        })();
+      </script>
+
+    {% else %}
+      <div id="loading-spinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Загрузка плеера…</p>
+      </div>
+      <iframe src="{{ video_url }}"
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+              allowfullscreen
+              referrerpolicy="no-referrer"
+              onload="var s=document.getElementById('loading-spinner');if(s)s.style.display='none';"
+              onerror="var s=document.getElementById('loading-spinner');if(s)s.style.display='none';"></iframe>
+      <script>
+        // Safety timeout for iframe
+        setTimeout(function(){
+          var s=document.getElementById('loading-spinner');
+          if(s) s.style.display='none';
+        }, 12000);
+      </script>
+    {% endif %}
+  </div>
+</body>
+</html>
